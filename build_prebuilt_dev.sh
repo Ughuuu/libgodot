@@ -41,7 +41,14 @@ BUILD_GODOT_CPP_ANDROID_DIR=$BUILD_DIR/godot-cpp-android
 
 rm -rf $PREBUILT_TARGET_DIR
 mkdir -p $PREBUILT_TARGET_DIR
-cp -vf $BUILD_DIR/libgodot/dev/libgodot.xcframework.zip $PREBUILT_TARGET_DIR
-cp -vf $BUILD_DIR/godot-cpp/dev/libgodot-cpp.xcframework.zip $PREBUILT_TARGET_DIR
-cp -vf $BUILD_GODOT_CPP_ANDROID_DIR/dev/godot-cpp-android.zip $PREBUILT_TARGET_DIR
+
+cd $BUILD_DIR/libgodot/dev
+zip -r $PREBUILT_TARGET_DIR/libgodot.xcframework.zip libgodot.xcframework
+
+cd $BUILD_DIR/godot-cpp/dev/
+zip -r $PREBUILT_TARGET_DIR/libgodot-cpp.xcframework.zip libgodot-cpp.xcframework
+
+cd $BUILD_GODOT_CPP_ANDROID_DIR/dev
+zip -r $PREBUILT_TARGET_DIR/godot-cpp-android.zip godot-cpp-android
+
 cp -vf $ANDROID_LIB_BUILD_DIR/libgodot-android.zip $PREBUILT_TARGET_DIR

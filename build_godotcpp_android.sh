@@ -110,4 +110,6 @@ rm -rf $BUILD_GODOT_CPP_TARGET_DIR
 mkdir -p $BUILD_GODOT_CPP_TARGET_DIR
 
 cd $tmp_dir
-zip -r $BUILD_GODOT_CPP_TARGET_DIR/godot-cpp-android.zip godot-cpp-android
+cp -Rvf godot-cpp-android $BUILD_GODOT_CPP_TARGET_DIR
+
+rm -rf $tmp_dir

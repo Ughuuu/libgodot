@@ -120,8 +120,7 @@ xcodebuild -create-xcframework \
     -output $prep_dir/libgodot-cpp.xcframework
 
 cd $prep_dir
-rm -rf $BUILD_GODOT_CPP_TARGET_DIR/libgodot-cpp.xcframework.zip
-zip -r $BUILD_GODOT_CPP_TARGET_DIR/libgodot-cpp.xcframework.zip libgodot-cpp.xcframework
+cp -Rvf libgodot-cpp.xcframework $BUILD_GODOT_CPP_TARGET_DIR
 
 cd $BASE_DIR
 rm -rf $tmp_dir

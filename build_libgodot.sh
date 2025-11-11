@@ -266,7 +266,7 @@ then
     if [ $dev_build -eq 1 ]
     then
         android_build_type="dev"
-        android_target_build_type="debug"
+        android_target_build_type="dev"
     fi
     if [ "$library_type" = "shared_library" ]
     then

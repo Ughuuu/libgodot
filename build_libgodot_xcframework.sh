@@ -145,6 +145,6 @@ rm -rf $BUILD_LIBGODOT_TARGET_DIR
 mkdir -p $BUILD_LIBGODOT_TARGET_DIR
 
 cd $tmp_dir
-zip -r $BUILD_LIBGODOT_TARGET_DIR/libgodot.xcframework.zip libgodot.xcframework
+cp -Rvf libgodot.xcframework $BUILD_LIBGODOT_TARGET_DIR
 
 rm -rf $tmp_dir
