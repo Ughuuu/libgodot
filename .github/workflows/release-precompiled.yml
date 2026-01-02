@@ -1,0 +1,104 @@
+name: release-precompiled
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runs_on }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            runs_on: ubuntu-latest
+            target: x86_64-linux-gnu
+          - name: macos-arm64
+            runs_on: macos-14
+            target: aarch64-apple-darwin
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            clang \
+            cmake \
+            pkg-config \
+            python3 \
+            scons \
+            git \
+            zip \
+            unzip
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew update
+          brew install cmake scons
+
+      - name: Build libgodot
+        run: |
+          ./build_libgodot.sh
+
+      - name: Configure NIF build
+        run: |
+          cd samples/elixir_sample
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build NIF (single job)
+        run: |
+          cd samples/elixir_sample
+          cmake --build build --target libgodot_nif
+
+      - name: Package artefact
+        run: |
+          set -euo pipefail
+          # Draft releases are created per-commit on main.
+          VERSION="${GITHUB_SHA::7}"
+          cd samples/elixir_sample
+
+          mkdir -p dist
+
+          # Determine platform libgodot filename.
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            LIBGODOT_NAME="libgodot.dylib"
+          else
+            LIBGODOT_NAME="libgodot.so"
+          fi
+
+          test -f "priv/libgodot_nif.so"
+          test -f "priv/${LIBGODOT_NAME}"
+
+          TAR_NAME="libgodot-nif-${{ matrix.target }}-${VERSION}.tar.gz"
+
+          # Package only the runtime bits needed in priv/.
+          tar -czf "dist/${TAR_NAME}" -C priv "libgodot_nif.so" "${LIBGODOT_NAME}"
+
+          echo "Built dist/${TAR_NAME}"
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          prerelease: true
+          tag_name: "main-${{ github.sha }}"
+          name: "main-${{ github.sha }}"
+          target_commitish: "${{ github.sha }}"
+          files: |
+            samples/elixir_sample/dist/*.tar.gz
