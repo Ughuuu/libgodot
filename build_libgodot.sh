@@ -27,6 +27,7 @@ update_api=0
 simulator=0
 library_type="auto"
 profiler_type=""
+headless=0
 
 angle_libs="$BASE_DIR/ANGLE"
 
@@ -97,8 +98,11 @@ do
             shift
             profiler_type="${1:-}"
         ;;
+        --headless)
+            headless=1
+        ;;
         *)
-            echo "Usage: $0 [--host-debug] [--host-rebuild] [--host-debug] [--host-release] [--debug] [--release] [--update-api] [--target <target platform>] [--target-arch <target platform>] [--profiler-type <profiler type>]"
+            echo "Usage: $0 [--host-debug] [--host-rebuild] [--host-debug] [--host-release] [--debug] [--release] [--update-api] [--target <target platform>] [--target-arch <target platform>] [--library-type <library type>] [--profiler-type <profiler type>] [--headless]"
             exit 1
         ;;
     esac
@@ -140,6 +144,24 @@ then
         target_build_options="$target_build_options library_type=static_library"
     else
         lib_suffix="so"
+        target_build_options="$target_build_options library_type=shared_library"
+    fi
+fi
+
+# For desktop targets (macOS/Linux), default to building a shared library.
+# The host build still produces an editor executable, which is used for dumping the GDExtension API.
+if [ "$target_platform" != "ios" ] && [ "$target_platform" != "android" ]
+then
+    if [ "$library_type" = "auto" ]
+    then
+        library_type="shared_library"
+    fi
+    if [ "$library_type" = "static_library" ]
+    then
+        lib_suffix="a"
+        target_build_options="$target_build_options library_type=static_library"
+    elif [ "$library_type" = "shared_library" ]
+    then
         target_build_options="$target_build_options library_type=shared_library"
     fi
 fi
@@ -219,15 +241,18 @@ then
     cp -vf $host_godot $BUILD_DIR/godot
 fi
 
+mkdir -p $BUILD_GDEXTENSION_DIR
+
 if [ $update_api -eq 1 ] || [ ! -f $BUILD_GDEXTENSION_DIR/extension_api.json ]
 then
-    mkdir -p $BUILD_GDEXTENSION_DIR
     cd $BUILD_GDEXTENSION_DIR
     $host_godot --headless --dump-extension-api
-    cp -v $GODOT_DIR/core/extension/gdextension_interface.h $BUILD_GDEXTENSION_DIR/
-
     echo "Successfully updated the GDExtension API."
 fi
+
+# Always keep headers in sync for downstream consumers (samples, bindings).
+cp -v $GODOT_DIR/core/extension/gdextension_interface.h $BUILD_GDEXTENSION_DIR/
+cp -v $GODOT_DIR/core/extension/libgodot.h $BUILD_GDEXTENSION_DIR/
 
 if [ "$target_platform" = "" ]
 then
@@ -235,8 +260,54 @@ then
     exit 0
 fi
 
+# Headless mode: build a libgodot intended for embedded/headless usage.
+# This avoids pulling any window-system dependencies and renderer backends.
+# Useful for CI and for host processes that do not need rendering.
+if [ $headless -eq 1 ]
+then
+    # Disable window system backends on Linux/BSD.
+    if [ "$target_platform" = "linuxbsd" ]
+    then
+        target_build_options="$target_build_options x11=no wayland=no"
+    fi
+
+    # Disable SDL input driver as it may transitively include X11/Wayland headers.
+    target_build_options="$target_build_options sdl=no"
+
+    # Disable renderer backends.
+    target_build_options="$target_build_options vulkan=no opengl3=no metal=no d3d12=no"
+fi
+
 cd $GODOT_DIR
 scons p=$target_platform target=$target arch=$target_arch $target_build_options swappy=no
+
+# Godot may place the final shared library under bin/obj/bin/ depending on target/platform.
+# Resolve the real output path so the copy steps below work reliably (and don't pick up stale binaries).
+alt_target_godot="$GODOT_DIR/bin/obj/bin/libgodot.$target_godot_suffix.$lib_suffix"
+resolved_target_godot="$(ls -t "$alt_target_godot" "$target_godot" 2>/dev/null | head -n 1 || true)"
+
+if [ "${resolved_target_godot:-}" = "" ]
+then
+    found_target_godot="$(find "$GODOT_DIR/bin" -maxdepth 6 -name "libgodot.$target_godot_suffix.$lib_suffix" -print -quit 2>/dev/null || true)"
+    resolved_target_godot="${found_target_godot:-}"
+fi
+
+if [ "${resolved_target_godot:-}" = "" ] || [ ! -f "$resolved_target_godot" ]
+then
+    echo "Failed to locate built libgodot output for suffix '$target_godot_suffix'"
+    exit 1
+fi
+
+target_godot="$resolved_target_godot"
+echo "Using libgodot output: $target_godot"
+
+# For desktop development and samples, expose a stable name under build/.
+if [ "$target_platform" = "$host_platform" ] && [ "$library_type" != "executable" ]
+then
+    mkdir -p $BUILD_DIR
+    rm -f $BUILD_DIR/libgodot.*
+    cp -vf $target_godot $BUILD_DIR/libgodot.$lib_suffix
+fi
 
 function godot_to_android_arch() {
     godot_arch="$1"

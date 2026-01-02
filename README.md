@@ -52,6 +52,7 @@ After libgodot is compiled successfully, run the following commands to test the 
 cd samples/cpp_sample
 mkdir build
 cmake -S . -B build
+cmake --build build
 cd build
 ./sample
 ```
