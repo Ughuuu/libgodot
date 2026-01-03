@@ -17,7 +17,7 @@ defmodule LibGodotConnector.MixProject do
       package: package(),
       docs: [main: "readme", extras: ["README.md"]],
       start_permanent: Mix.env() == :prod,
-      compilers: [:elixir_make] ++ Mix.compilers(),
+      compilers: Mix.compilers() ++ [:elixir_make],
       make_clean: ["clean"],
       deps: deps()
     ]

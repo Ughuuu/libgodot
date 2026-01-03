@@ -82,7 +82,10 @@ jobs:
           set -euo pipefail
           cd samples/elixir_sample
           mix deps.get
-          MIX_ENV=prod mix do compile --force + elixir_make.precompile
+          # Avoid any download attempt during CI artefact generation.
+          export LIBGODOT_FORCE_BUILD=1
+          MIX_ENV=prod mix compile --force
+          MIX_ENV=prod mix elixir_make.precompile
 
       - name: Collect precompiled artefacts
         run: |
