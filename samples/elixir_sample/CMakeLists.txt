@@ -16,7 +16,7 @@ if(NOT ERL_INCLUDE_PATH)
   message(FATAL_ERROR "Could not determine ERL_INCLUDE_PATH; ensure 'erl' is on PATH")
 endif()
 
-set(GODOT_CPP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../godot-cpp)
+set(GODOT_CPP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../thirdparty/godot-cpp)
 
 message(STATUS "Building godot-cpp via add_subdirectory (incremental; first build may take a while)...")
 # Keep the setup similar to the C++ sample (add_subdirectory), but isolate build artifacts

@@ -4,8 +4,8 @@ set -eux
 
 BASE_DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
-GODOT_DIR="$BASE_DIR/godot"
-GODOT_CPP_DIR="$BASE_DIR/godot-cpp"
+GODOT_DIR="$BASE_DIR/thirdparty/godot"
+GODOT_CPP_DIR="$BASE_DIR/thirdparty/godot-cpp"
 BUILD_DIR=$BASE_DIR/build
 BUILD_GDEXTENSION_DIR=$BUILD_DIR/gdextension
 BUILD_HEADERS_DIR=$BUILD_DIR/libgodot_cpp_headers

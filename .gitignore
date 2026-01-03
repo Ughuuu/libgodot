@@ -7,6 +7,4 @@ libgodot_framework/libgodot/libgodot.a
 samples/elixir_sample/_build/
 samples/elixir_sample/priv/
 samples/elixir_sample/deps/
-godot-cpp
-godot
 .DS_Store

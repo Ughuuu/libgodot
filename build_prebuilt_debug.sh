@@ -8,7 +8,7 @@ BASE_DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 BUILD_DIR=$BASE_DIR/build
 PREBUILT_DIR=$BUILD_DIR/prebuilt
 PREBUILT_TARGET_DIR=$PREBUILT_DIR/debug
-ANDROID_DIR=$BASE_DIR/godot/platform/android/java
+ANDROID_DIR=$BASE_DIR/thirdparty/godot/platform/android/java
 ANDROID_LIB_BUILD_DIR=$BUILD_DIR/android/debug
 
 export SIGNING_DISABLED="true"

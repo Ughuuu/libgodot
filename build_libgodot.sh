@@ -4,10 +4,10 @@ set -eux
 
 BASE_DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
-GODOT_DIR="$BASE_DIR/godot"
-GODOT_CPP_DIR="$BASE_DIR/godot-cpp"
-SWIFT_GODOT_DIR="$BASE_DIR/SwiftGodot"
-SWIFT_GODOT_KIT_DIR="$BASE_DIR/SwiftGodotKit"
+GODOT_DIR="$BASE_DIR/thirdparty/godot"
+GODOT_CPP_DIR="$BASE_DIR/thirdparty/godot-cpp"
+SWIFT_GODOT_DIR="$BASE_DIR/thirdparty/SwiftGodot"
+SWIFT_GODOT_KIT_DIR="$BASE_DIR/thirdparty/SwiftGodotKit"
 BUILD_DIR=$BASE_DIR/build
 BUILD_GDEXTENSION_DIR="$BUILD_DIR/gdextension"
 
