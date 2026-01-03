@@ -36,7 +36,7 @@ jobs:
         uses: erlef/setup-beam@v1
         with:
           elixir-version: '1.19'
-          otp-version: '28.0'
+          otp-version: '28.3'
 
       - name: Cache Homebrew downloads (macOS)
         if: runner.os == 'macOS'
@@ -84,8 +84,8 @@ jobs:
           mix deps.get
           # Avoid any download attempt during CI artefact generation.
           export LIBGODOT_FORCE_BUILD=1
-          MIX_ENV=prod mix compile --force
-          MIX_ENV=prod mix elixir_make.precompile
+          # Run in a single Mix invocation so the Precompiler module is compiled+loaded.
+          MIX_ENV=prod mix do compile --force + elixir_make.precompile
 
       - name: Collect precompiled artefacts
         run: |
