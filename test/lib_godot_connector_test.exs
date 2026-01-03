@@ -153,10 +153,11 @@ defmodule LibGodotConnectorTest do
     {:ok, godot_ref} = LibGodot.Driver.create(args)
     :ok = LibGodot.Driver.start(godot_ref)
 
-    # Send a request that should work (but may timeout if Godot doesn't respond)
-    result = LibGodot.Driver.request(godot_ref, "ping", 100)
-    # The request should return the message sent status
-    assert result == {:ok, "message_sent"}, "Request should send message successfully"
+    # Send a request that should work - Godot should echo back "echo:ping"
+    result = LibGodot.Driver.request(godot_ref, "ping", 2000)
+    IO.inspect(result, label: "Request result")
+    # The request should return the echoed response from Godot
+    assert result == {:ok, "echo:ping"}, "Request should return echoed response from Godot"
   end
 
   test "README - event subscription and message reception" do

@@ -11,6 +11,8 @@
 #include <iomanip>
 #include <signal.h>
 #include <errno.h>
+#include <sys/select.h>
+#include <sys/time.h>
 
 // Simple port that launches godot executable as subprocess
 struct GodotProcess {
@@ -63,6 +65,89 @@ static std::string escape_json(const std::string &s) {
         }
     }
     return o.str();
+}
+
+// Simple JSON parser (basic, just for this use case)
+static bool parse_json(const std::string &line, std::string &cmd, std::vector<std::string> &args, std::string &ref, std::string &msg, std::string &lib_path, uint64_t &request_id) {
+    // Very basic JSON parsing - just extract what we need
+    if (line.find("\"cmd\"") == std::string::npos) return false;
+
+    size_t cmd_pos = line.find("\"cmd\"");
+    if (cmd_pos == std::string::npos) return false;
+
+    size_t cmd_start = line.find('"', cmd_pos + 6);
+    size_t cmd_end = line.find('"', cmd_start + 1);
+    if (cmd_start == std::string::npos || cmd_end == std::string::npos) return false;
+    cmd = line.substr(cmd_start + 1, cmd_end - cmd_start - 1);
+
+    if (line.find("\"ref\"") != std::string::npos) {
+        size_t ref_pos = line.find("\"ref\"");
+        size_t ref_start = line.find('"', ref_pos + 6);
+        size_t ref_end = line.find('"', ref_start + 1);
+        if (ref_start != std::string::npos && ref_end != std::string::npos) {
+            ref = line.substr(ref_start + 1, ref_end - ref_start - 1);
+        }
+    }
+
+    if (line.find("\"msg\"") != std::string::npos) {
+        size_t msg_pos = line.find("\"msg\"");
+        size_t msg_start = line.find('"', msg_pos + 6);
+        size_t msg_end = line.find('"', msg_start + 1);
+        if (msg_start != std::string::npos && msg_end != std::string::npos) {
+            msg = line.substr(msg_start + 1, msg_end - msg_start - 1);
+        }
+    }
+
+    if (line.find("\"lib_path\"") != std::string::npos) {
+        size_t path_pos = line.find("\"lib_path\"");
+        size_t path_start = line.find('"', path_pos + 11);
+        size_t path_end = line.find('"', path_start + 1);
+        if (path_start != std::string::npos && path_end != std::string::npos) {
+            lib_path = line.substr(path_start + 1, path_end - path_start - 1);
+        }
+    }
+
+    // Parse request_id for request commands
+    if (line.find("\"request_id\"") != std::string::npos) {
+        size_t id_pos = line.find("\"request_id\"");
+        size_t id_start = line.find(':', id_pos + 12);
+        size_t id_end = line.find(',', id_start);
+        if (id_end == std::string::npos) {
+            id_end = line.find('}', id_start);
+        }
+        if (id_start != std::string::npos && id_end != std::string::npos) {
+            std::string id_str = line.substr(id_start + 1, id_end - id_start - 1);
+            try {
+                request_id = std::stoull(id_str);
+            } catch (...) {
+                request_id = 0;
+            }
+        }
+    }
+
+    // Parse args array
+    if (line.find("\"args\"") != std::string::npos) {
+        size_t args_pos = line.find("\"args\"");
+        size_t array_start = line.find('[', args_pos);
+        if (array_start != std::string::npos) {
+            size_t array_end = line.find(']', array_start);
+            if (array_end != std::string::npos) {
+                std::string args_str = line.substr(array_start + 1, array_end - array_start - 1);
+                std::istringstream iss(args_str);
+                std::string arg;
+                while (std::getline(iss, arg, ',')) {
+                    // Remove quotes and trim
+                    size_t start = arg.find('"');
+                    size_t end = arg.rfind('"');
+                    if (start != std::string::npos && end != std::string::npos && end > start) {
+                        args.push_back(arg.substr(start + 1, end - start - 1));
+                    }
+                }
+            }
+        }
+    }
+
+    return true;
 }
 
 static void handle_create(const std::vector<std::string> &args, const std::string &godot_path = "") {
@@ -195,6 +280,48 @@ static void handle_send_message(const std::string &ref, const std::string &msg) 
     }
 }
 
+static void handle_request(const std::string &ref, const std::string &msg, uint64_t request_id) {
+    auto it = processes.find(ref);
+    if (it == processes.end()) {
+        send_response("{\"ok\":false,\"error\":\"invalid_ref\"}");
+        return;
+    }
+
+    // Send request to godot process via stdin with request ID
+    // Format expected by Godot: "__request__:<id>:<payload>"
+    std::string message = "__request__:" + std::to_string(request_id) + ":" + msg + "\n";
+    ssize_t written = write(it->second->stdin_fd, message.c_str(), message.length());
+
+    if (written < 0) {
+        send_response("{\"ok\":false,\"error\":\"write_failed\"}");
+    } else {
+        send_response("{\"ok\":true}");
+    }
+}
+
+static void handle_response_from_godot(const std::string &line) {
+    // Parse response from Godot: "RESP:request_id:json_response"
+    if (line.substr(0, 5) != "RESP:") {
+        return; // Not a response
+    }
+
+    size_t first_colon = line.find(':', 5);
+    if (first_colon == std::string::npos) return;
+
+    size_t second_colon = line.find(':', first_colon + 1);
+    if (second_colon == std::string::npos) return;
+
+    try {
+        uint64_t request_id = std::stoull(line.substr(5, first_colon - 5));
+        std::string json_response = line.substr(second_colon + 1);
+
+        // Send response back to Elixir
+        send_response("{\"response\":" + std::to_string(request_id) + ",\"data\":" + json_response + "}");
+    } catch (...) {
+        // Invalid response format - ignore
+    }
+}
+
 static void handle_shutdown(const std::string &ref) {
     auto it = processes.find(ref);
     if (it == processes.end()) {
@@ -219,100 +346,99 @@ static void handle_shutdown(const std::string &ref) {
     send_response("{\"ok\":true}");
 }
 
-// Simple JSON parser (basic, just for this use case)
-static bool parse_json(const std::string &line, std::string &cmd, std::vector<std::string> &args, std::string &ref, std::string &msg, std::string &lib_path) {
-    // Very basic JSON parsing - just extract what we need
-    if (line.find("\"cmd\"") == std::string::npos) return false;
-
-    size_t cmd_pos = line.find("\"cmd\"");
-    if (cmd_pos == std::string::npos) return false;
-
-    size_t cmd_start = line.find('"', cmd_pos + 6);
-    size_t cmd_end = line.find('"', cmd_start + 1);
-    if (cmd_start == std::string::npos || cmd_end == std::string::npos) return false;
-    cmd = line.substr(cmd_start + 1, cmd_end - cmd_start - 1);
-
-    if (line.find("\"ref\"") != std::string::npos) {
-        size_t ref_pos = line.find("\"ref\"");
-        size_t ref_start = line.find('"', ref_pos + 6);
-        size_t ref_end = line.find('"', ref_start + 1);
-        if (ref_start != std::string::npos && ref_end != std::string::npos) {
-            ref = line.substr(ref_start + 1, ref_end - ref_start - 1);
+static void handle_command(const std::string& cmd, const std::vector<std::string>& args,
+                          const std::string& ref, const std::string& msg,
+                          const std::string& lib_path, uint64_t request_id) {
+    if (cmd == "create") {
+        if (lib_path.empty()) {
+            handle_create(args);
+        } else {
+            handle_create(args, lib_path);
         }
+    } else if (cmd == "start") {
+        handle_start(ref);
+    } else if (cmd == "iteration") {
+        handle_iteration(ref);
+    } else if (cmd == "send_message") {
+        handle_send_message(ref, msg);
+    } else if (cmd == "request") {
+        handle_request(ref, msg, request_id);
+    } else if (cmd == "shutdown") {
+        handle_shutdown(ref);
+    } else {
+        send_response("{\"ok\":false,\"error\":\"unknown_command\"}");
     }
-
-    if (line.find("\"msg\"") != std::string::npos) {
-        size_t msg_pos = line.find("\"msg\"");
-        size_t msg_start = line.find('"', msg_pos + 6);
-        size_t msg_end = line.find('"', msg_start + 1);
-        if (msg_start != std::string::npos && msg_end != std::string::npos) {
-            msg = line.substr(msg_start + 1, msg_end - msg_start - 1);
-        }
-    }
-
-    if (line.find("\"lib_path\"") != std::string::npos) {
-        size_t path_pos = line.find("\"lib_path\"");
-        size_t path_start = line.find('"', path_pos + 11);
-        size_t path_end = line.find('"', path_start + 1);
-        if (path_start != std::string::npos && path_end != std::string::npos) {
-            lib_path = line.substr(path_start + 1, path_end - path_start - 1);
-        }
-    }
-
-    // Parse args array
-    if (line.find("\"args\"") != std::string::npos) {
-        size_t args_pos = line.find("\"args\"");
-        size_t array_start = line.find('[', args_pos);
-        if (array_start != std::string::npos) {
-            size_t array_end = line.find(']', array_start);
-            if (array_end != std::string::npos) {
-                std::string args_str = line.substr(array_start + 1, array_end - array_start - 1);
-                std::istringstream iss(args_str);
-                std::string arg;
-                while (std::getline(iss, arg, ',')) {
-                    // Remove quotes and trim
-                    size_t start = arg.find('"');
-                    size_t end = arg.rfind('"');
-                    if (start != std::string::npos && end != std::string::npos && end > start) {
-                        args.push_back(arg.substr(start + 1, end - start - 1));
-                    }
-                }
-            }
-        }
-    }
-
-    return true;
 }
 
 int main() {
-    std::string line;
-    while (std::getline(std::cin, line)) {
-        if (line.empty()) continue;
+    fd_set read_fds;
+    int max_fd = STDIN_FILENO;
 
-        std::string cmd, ref, msg, lib_path;
-        std::vector<std::string> args;
+    while (true) {
+        // Set up file descriptors to monitor
+        FD_ZERO(&read_fds);
+        FD_SET(STDIN_FILENO, &read_fds);
 
-        if (!parse_json(line, cmd, args, ref, msg, lib_path)) {
+        // Add all Godot stdout pipes
+        for (const auto& pair : processes) {
+            int fd = pair.second->stdout_fd;
+            if (fd >= 0) {
+                FD_SET(fd, &read_fds);
+                if (fd > max_fd) max_fd = fd;
+            }
+        }
+
+        // Wait for activity on any file descriptor
+        int activity = select(max_fd + 1, &read_fds, nullptr, nullptr, nullptr);
+        if (activity < 0) {
+            if (errno == EINTR) continue; // Interrupted by signal
+            break; // Error
+        }
+
+        // Check stdin (commands from Elixir)
+        if (FD_ISSET(STDIN_FILENO, &read_fds)) {
+            std::string line;
+            if (!std::getline(std::cin, line)) {
+                break; // EOF or error
+            }
+
+            if (line.empty()) continue;
+
+            std::string cmd, ref, msg, lib_path;
+            std::vector<std::string> args;
+            uint64_t request_id = 0;
+
+        if (!parse_json(line, cmd, args, ref, msg, lib_path, request_id)) {
             send_response("{\"ok\":false,\"error\":\"parse_error\"}");
             continue;
         }
 
-        if (cmd == "create") {
-            if (lib_path.empty()) {
-                handle_create(args);
-            } else {
-                handle_create(args, lib_path);
+        if (cmd == "request") {
+            std::cerr << "PORT: Received request command for ref: " << ref << ", msg: " << msg << ", id: " << request_id << std::endl;
+        }
+
+        handle_command(cmd, args, ref, msg, lib_path, request_id);
+        }
+
+        // Check Godot stdout pipes for responses
+        for (auto& pair : processes) {
+            int fd = pair.second->stdout_fd;
+            if (fd >= 0 && FD_ISSET(fd, &read_fds)) {
+                char buffer[1024];
+                ssize_t bytes_read = read(fd, buffer, sizeof(buffer) - 1);
+                if (bytes_read > 0) {
+                    buffer[bytes_read] = '\0';
+                    std::string line(buffer);
+
+                    // Remove trailing newline
+                    if (!line.empty() && line.back() == '\n') {
+                        line.pop_back();
+                    }
+
+                    // Handle response from Godot
+                    handle_response_from_godot(line);
+                }
             }
-        } else if (cmd == "start") {
-            handle_start(ref);
-        } else if (cmd == "iteration") {
-            handle_iteration(ref);
-        } else if (cmd == "send_message") {
-            handle_send_message(ref, msg);
-        } else if (cmd == "shutdown") {
-            handle_shutdown(ref);
-        } else {
-            send_response("{\"ok\":false,\"error\":\"unknown_command\"}");
         }
     }
 

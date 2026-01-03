@@ -6,7 +6,7 @@ defmodule LibGodot.Port do
   
   use GenServer
   
-  defstruct [:port, :ref, :subscriber]
+  defstruct [:port, :ref, :subscriber, :pending_requests]
   
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: opts[:name] || __MODULE__)
@@ -48,10 +48,9 @@ defmodule LibGodot.Port do
       :binary,
       :use_stdio,
       :exit_status
-      # Don't redirect stderr to stdout - we'll handle it separately
     ])
     
-    {:ok, %__MODULE__{port: port, ref: nil, subscriber: nil}}
+    {:ok, %__MODULE__{port: port, ref: nil, subscriber: nil, pending_requests: %{}}}
   end
   
   @impl true
@@ -130,9 +129,27 @@ defmodule LibGodot.Port do
   end
   
   @impl true
-  def handle_call({:request, ref, msg, _timeout_ms}, from, state) do
-    # For now, requests are not implemented in the port - just send the message
-    handle_call({:send_message, ref, msg}, from, state)
+  def handle_call({:request, ref, msg, timeout_ms}, {_from_pid, _ref} = from, state) do
+    # Generate unique request ID
+    request_id = :erlang.unique_integer([:positive])
+
+    # Send request to Godot with ID
+    cmd = Jason.encode!(%{cmd: "request", ref: ref, msg: msg, request_id: request_id})
+    send(state.port, {self(), {:command, cmd <> "\n"}})
+
+    # Wait for command acknowledgment
+    case wait_for_response(state.port) do
+      {:ok, %{"ok" => true}} ->
+        # Store pending request
+        timer_ref = Process.send_after(self(), {:request_timeout, request_id}, timeout_ms)
+        pending_requests = Map.put(state.pending_requests, request_id, %{from: from, timer: timer_ref})
+
+        {:noreply, %{state | pending_requests: pending_requests}}
+      {:ok, %{"ok" => false, "error" => error}} ->
+        {:reply, {:error, error}, state}
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
   end
 
   @impl true
@@ -158,17 +175,46 @@ defmodule LibGodot.Port do
   end
   
   @impl true
-  def handle_info({port, {:data, data}}, %{port: port, subscriber: subscriber} = state) do
-    # Handle event messages from Godot (lines starting with {"event":...})
-    # Skip command responses (they're handled in handle_call via wait_for_response)
+  def handle_info({port, {:data, data}}, %{port: port, subscriber: subscriber, pending_requests: pending_requests} = state) do
     case Jason.decode(data) do
+      {:ok, %{"response" => request_id, "data" => response_data}} ->
+        # Handle request response from Godot
+        case Map.get(pending_requests, request_id) do
+          %{from: from, timer: timer_ref} ->
+            # Cancel timeout timer
+            Process.cancel_timer(timer_ref)
+            # Reply to waiting process
+            GenServer.reply(from, {:ok, response_data})
+            # Remove from pending requests
+            pending_requests = Map.delete(pending_requests, request_id)
+            {:noreply, %{state | pending_requests: pending_requests}}
+          nil ->
+            # Response for unknown request - ignore
+            {:noreply, state}
+        end
       {:ok, %{"event" => "message", "data" => msg}} when not is_nil(subscriber) ->
+        # Handle event messages from Godot
         send(subscriber, {:godot_message, msg})
+        {:noreply, state}
       _ ->
-        :ok
+        # Skip other messages (command responses are handled in handle_call)
+        {:noreply, state}
     end
-    
-    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:request_timeout, request_id}, %{pending_requests: pending_requests} = state) do
+    # Handle request timeout
+    case Map.get(pending_requests, request_id) do
+      %{from: from} ->
+        # Reply with timeout error
+        GenServer.reply(from, {:error, :timeout})
+        # Remove from pending requests
+        pending_requests = Map.delete(pending_requests, request_id)
+        {:noreply, %{state | pending_requests: pending_requests}}
+      nil ->
+        {:noreply, state}
+    end
   end
 
   @impl true
