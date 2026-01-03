@@ -41,22 +41,20 @@ defmodule LibGodotConnector.MixProject do
   defp precompiled_opts do
     force_build? = System.get_env("LIBGODOT_FORCE_BUILD") in ["1", "true", "TRUE"]
 
-    if force_build? do
-      []
-    else
-      url = System.get_env("LIBGODOT_PRECOMPILED_URL") || @default_precompiled_url
+    url = System.get_env("LIBGODOT_PRECOMPILED_URL") || @default_precompiled_url
 
-      [
-        # Fetch precompiled NIFs from GitHub releases.
-        # If unavailable, elixir_make falls back to building locally.
-        make_precompiler: {:nif, LibGodotConnector.Precompiler},
-        make_precompiler_url: url,
-        # Our actual NIF filename is libgodot_nif.so (not derived from app name).
-        make_precompiler_filename: "libgodot_nif",
-        # Include the NIF and the packaged libgodot next to it.
-        make_precompiler_priv_paths: ["libgodot_nif.so", "libgodot.*"]
-      ]
-    end
+    [
+      # Fetch precompiled NIFs from GitHub releases.
+      # If unavailable, elixir_make falls back to building locally.
+      make_precompiler: {:nif, LibGodotConnector.Precompiler},
+      make_precompiler_url: url,
+      # When true, skip any download attempts and always build locally.
+      make_force_build: force_build?,
+      # Our actual NIF filename is libgodot_nif.so (not derived from app name).
+      make_precompiler_filename: "libgodot_nif",
+      # Include the NIF and the packaged libgodot next to it.
+      make_precompiler_priv_paths: ["libgodot_nif.so", "libgodot.*"]
+    ]
   end
 
   defp description do
