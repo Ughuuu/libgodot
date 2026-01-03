@@ -2,8 +2,9 @@ name: release-precompiled
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -76,59 +77,49 @@ jobs:
         run: |
           ./build_libgodot.sh --release
 
-      - name: Configure NIF build
-        run: |
-          cd samples/elixir_sample
-          cmake -S . -B build \
-            -DCMAKE_BUILD_TYPE=Release
-
-      - name: Build NIF (single job)
-        run: |
-          cd samples/elixir_sample
-          cmake --build build --target libgodot_nif
-
-      - name: Normalize and verify libgodot install name (macOS)
-        if: runner.os == 'macOS'
+      - name: Build and precompile NIF (elixir_make)
         run: |
           set -euo pipefail
           cd samples/elixir_sample
-          # Ensure the packaged dylib does not keep Godot's original install name (bin/libgodot...).
-          install_name_tool -id "@rpath/libgodot.dylib" "priv/libgodot.dylib"
-          otool -D "priv/libgodot.dylib" | tail -n 1 | grep -F "@rpath/libgodot.dylib"
+          mix deps.get
+          MIX_ENV=prod mix do compile --force + elixir_make.precompile
 
-      - name: Package artefact
+      - name: Collect precompiled artefacts
         run: |
           set -euo pipefail
-          # Draft releases are created per-commit on main.
-          VERSION="${GITHUB_SHA::7}"
           cd samples/elixir_sample
 
           mkdir -p dist
 
-          # Determine platform libgodot filename.
-          if [ "${{ runner.os }}" = "macOS" ]; then
-            LIBGODOT_NAME="libgodot.dylib"
-          else
-            LIBGODOT_NAME="libgodot.so"
-          fi
+          CACHE_DIR=$(mix run --no-start -e 'IO.puts(ElixirMake.Artefact.cache_dir())')
+          echo "elixir_make cache dir: ${CACHE_DIR}"
 
-          test -f "priv/libgodot_nif.so"
-          test -f "priv/${LIBGODOT_NAME}"
+          # Copy the generated tarball + checksum sidecar(s) into dist for upload.
+          cp -v "${CACHE_DIR}"/*.tar.gz dist/
+          cp -v "${CACHE_DIR}"/*.tar.gz.sha256 dist/ || true
 
-          TAR_NAME="libgodot-nif-${{ matrix.target }}-${VERSION}.tar.gz"
+          # Also include checksum.exs written by elixir_make.precompile.
+          test -f checksum.exs
+          cp -v checksum.exs dist/
 
-          # Package only the runtime bits needed in priv/.
-          tar -czf "dist/${TAR_NAME}" -C priv "libgodot_nif.so" "${LIBGODOT_NAME}"
+      - name: Verify macOS libgodot install name (from tarball)
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          cd samples/elixir_sample
 
-          echo "Built dist/${TAR_NAME}"
+          TAR=$(ls -1 dist/*.tar.gz | head -n 1)
+          TMPDIR=$(mktemp -d)
+          tar -xzf "${TAR}" -C "${TMPDIR}"
+          otool -D "${TMPDIR}/libgodot.dylib" | tail -n 1 | grep -F "@rpath/libgodot.dylib"
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          draft: true
-          prerelease: true
-          tag_name: "main-${{ github.sha }}"
-          name: "main-${{ github.sha }}"
+          draft: false
+          prerelease: false
+          tag_name: "${{ github.ref_name }}"
+          name: "${{ github.ref_name }}"
           target_commitish: "${{ github.sha }}"
           files: |
-            samples/elixir_sample/dist/*.tar.gz
+            samples/elixir_sample/dist/*
