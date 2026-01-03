@@ -2,8 +2,8 @@ name: release-precompiled
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -116,10 +116,12 @@ jobs:
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          draft: false
-          prerelease: false
-          tag_name: "${{ github.ref_name }}"
-          name: "${{ github.ref_name }}"
+          # This is an intermediate artefact drop created from main.
+          # It is intentionally a draft/prerelease and uses a unique per-commit tag.
+          draft: true
+          prerelease: true
+          tag_name: "draft-${{ github.sha }}"
+          name: "draft-${{ github.sha }}"
           target_commitish: "${{ github.sha }}"
           files: |
             samples/elixir_sample/dist/*
