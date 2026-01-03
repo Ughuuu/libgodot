@@ -94,7 +94,7 @@ jobs:
 
           mkdir -p dist
 
-          CACHE_DIR=$(mix run --no-start -e 'IO.puts(ElixirMake.Artefact.cache_dir())')
+          CACHE_DIR=$(MIX_ENV=prod MIX_QUIET=1 mix run --no-deps-check --no-compile --no-start -e 'IO.puts(ElixirMake.Artefact.cache_dir())' | tail -n 1)
           echo "elixir_make cache dir: ${CACHE_DIR}"
 
           # Copy the generated tarball + checksum sidecar(s) into dist for upload.
