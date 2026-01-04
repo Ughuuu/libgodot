@@ -237,15 +237,18 @@ then
     cp -vf $host_godot $BUILD_DIR/godot
 fi
 
+mkdir -p $BUILD_GDEXTENSION_DIR
+
 if [ $update_api -eq 1 ] || [ ! -f $BUILD_GDEXTENSION_DIR/extension_api.json ]
 then
-    mkdir -p $BUILD_GDEXTENSION_DIR
     cd $BUILD_GDEXTENSION_DIR
     $host_godot --headless --dump-extension-api
-    cp -v $GODOT_DIR/core/extension/gdextension_interface.h $BUILD_GDEXTENSION_DIR/
-
     echo "Successfully updated the GDExtension API."
 fi
+
+# Always keep headers in sync for downstream consumers (samples, bindings).
+cp -v $GODOT_DIR/core/extension/gdextension_interface.h $BUILD_GDEXTENSION_DIR/
+cp -v $GODOT_DIR/core/extension/libgodot.h $BUILD_GDEXTENSION_DIR/
 
 if [ "$target_platform" = "" ]
 then
@@ -255,6 +258,23 @@ fi
 
 cd $GODOT_DIR
 scons p=$target_platform target=$target arch=$target_arch $target_build_options swappy=no
+
+# Godot may place the final shared library under bin/obj/bin/ depending on target/platform.
+# Resolve the real output path so the copy steps below work reliably in CI.
+if [ ! -f "$target_godot" ]
+then
+    alt_target_godot="$GODOT_DIR/bin/obj/bin/libgodot.$target_godot_suffix.$lib_suffix"
+    if [ -f "$alt_target_godot" ]
+    then
+        target_godot="$alt_target_godot"
+    else
+        found_target_godot="$(find "$GODOT_DIR/bin" -maxdepth 6 -name "libgodot.$target_godot_suffix.$lib_suffix" -print -quit || true)"
+        if [ "${found_target_godot:-}" != "" ]
+        then
+            target_godot="$found_target_godot"
+        fi
+    fi
+fi
 
 # For desktop development and samples, expose a stable name under build/.
 if [ "$target_platform" = "$host_platform" ] && [ "$library_type" != "executable" ]

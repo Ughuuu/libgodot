@@ -17,6 +17,10 @@ if(NOT ERL_INCLUDE_PATH)
 endif()
 
 set(GODOT_CPP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../godot-cpp)
+set(LIBGODOT_BUILD_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../build)
+
+# Ensure godot-cpp uses the same GDExtension API/header that libgodot was built with.
+set(GODOTCPP_GDEXTENSION_DIR "${LIBGODOT_BUILD_DIR}/gdextension" CACHE PATH "" FORCE)
 
 message(STATUS "Building godot-cpp via add_subdirectory (incremental; first build may take a while)...")
 # Keep the setup similar to the C++ sample (add_subdirectory), but isolate build artifacts
@@ -29,7 +33,7 @@ target_include_directories(libgodot_nif PRIVATE
   ${ERL_INCLUDE_PATH}
   ${GODOT_CPP_DIR}/include
   ${GODOT_CPP_DIR}/gen/include
-  ${GODOT_CPP_DIR}/gdextension
+  ${LIBGODOT_BUILD_DIR}/gdextension
 )
 
 target_link_libraries(libgodot_nif PRIVATE godot-cpp)

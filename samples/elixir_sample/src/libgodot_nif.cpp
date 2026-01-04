@@ -302,7 +302,7 @@ std::atomic<uint64_t> worker_token{0};
 
 // Worker-owned state.
 void *worker_handle = nullptr;
-GDExtensionObjectPtr (*worker_create_instance)(int, char *[], GDExtensionInitializationFunction) = nullptr;
+GDExtensionObjectPtr (*worker_create_instance)(int, char *[], GDExtensionInitializationFunction, InvokeCallbackFunction, ExecutorData, InvokeCallbackFunction, ExecutorData, LogCallbackFunction, LogCallbackData) = nullptr;
 void (*worker_destroy_instance)(GDExtensionObjectPtr) = nullptr;
 GDExtensionObjectPtr worker_object = nullptr;
 godot::GodotInstance *worker_instance = nullptr;
@@ -416,7 +416,7 @@ static void worker_loop() {
                     break;
                 }
 
-                GDExtensionObjectPtr obj = worker_create_instance(static_cast<int>(argv_c.size() - 1), argv_c.data(), gdextension_default_init);
+                GDExtensionObjectPtr obj = worker_create_instance(static_cast<int>(argv_c.size() - 1), argv_c.data(), gdextension_default_init, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr);
                 if (!obj) {
                     dlclose(worker_handle);
                     worker_handle = nullptr;
