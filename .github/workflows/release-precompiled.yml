@@ -73,9 +73,28 @@ jobs:
           # Keep this list conservative to avoid CI breakage from formula changes.
           brew install cmake scons molten-vk vulkan-headers vulkan-loader shaderc
 
+      - name: Restore SCons cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .scons_cache/
+          key: scons|${{ runner.os }}|${{ github.ref_name }}|${{ github.sha }}
+          restore-keys: |
+            scons|${{ runner.os }}|${{ github.ref_name }}|
+            scons|${{ runner.os }}|
+
       - name: Build libgodot
+        env:
+          # Match upstream CI defaults and avoid DISABLE_DEPRECATED-related API mismatches.
+          # Also enable SCons cache for faster rebuilds.
+          SCONSFLAGS: cache_path=${{ github.workspace }}/.scons_cache/ deprecated=yes
         run: |
           ./build_libgodot.sh --release
+
+      - name: Save SCons cache
+        uses: actions/cache/save@v4
+        with:
+          path: .scons_cache/
+          key: scons|${{ runner.os }}|${{ github.ref_name }}|${{ github.sha }}
 
       - name: Build and precompile NIF (elixir_make)
         run: |
