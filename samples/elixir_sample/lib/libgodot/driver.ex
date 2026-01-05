@@ -90,7 +90,7 @@ defmodule LibGodot.Driver do
       "godot",
       "--headless",
       "--path",
-      "../project/"
+      "project"
     ]
   end
 end

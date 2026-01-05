@@ -19,11 +19,13 @@ jobs:
       matrix:
         include:
           - name: linux-x86_64
-            runs_on: ubuntu-latest
+            runs_on: ubuntu-22.04
             target: x86_64-linux-gnu
+            flags: ""
           - name: macos-arm64
             runs_on: macos-15
             target: aarch64-apple-darwin
+            flags: ""
 
     steps:
       - name: Checkout
@@ -48,6 +50,12 @@ jobs:
           restore-keys: |
             homebrew-${{ runner.os }}-
 
+      - name: Setup dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install libwayland-bin  # TODO: Figure out somehow how to embed this one.
+
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -58,7 +66,6 @@ jobs:
             cmake \
             pkg-config \
             python3 \
-            scons \
             libvulkan-dev \
             vulkan-tools \
             git \
@@ -71,7 +78,20 @@ jobs:
           brew update
           # Vulkan on macOS is provided via MoltenVK.
           # Keep this list conservative to avoid CI breakage from formula changes.
-          brew install cmake scons molten-vk vulkan-headers vulkan-loader shaderc
+          brew install cmake molten-vk vulkan-headers vulkan-loader shaderc
+
+      - name: Set up Python 3.x
+        uses: actions/setup-python@v5
+        with:
+          # Semantic version range syntax or exact version of a Python version.
+          python-version: 3.8
+
+      - name: Setup SCons
+        shell: bash
+        run: |
+          python -c "import sys; print(sys.version)"
+          python -m pip install scons==4.0
+          scons --version
 
       - name: Restore SCons cache
         uses: actions/cache/restore@v4
@@ -88,7 +108,7 @@ jobs:
           # Also enable SCons cache for faster rebuilds.
           SCONSFLAGS: cache_path=${{ github.workspace }}/.scons_cache/ deprecated=yes
         run: |
-          ./build_libgodot.sh --release
+          ./build_libgodot.sh --release ${{ matrix.flags }}
 
       - name: Save SCons cache
         uses: actions/cache/save@v4

@@ -98,6 +98,12 @@ do
             shift
             profiler_type="${1:-}"
         ;;
+        --no-x11)
+            target_build_options="$target_build_options x11=no"
+        ;;
+        --no-wayland)
+            target_build_options="$target_build_options wayland=no"
+        ;;
         --headless)
             headless=1
         ;;

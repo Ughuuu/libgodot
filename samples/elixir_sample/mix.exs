@@ -1,7 +1,7 @@
 defmodule LibGodotConnector.MixProject do
   use Mix.Project
 
-  @version "4.5.1"
+  @version "4.5.1-2"
   # Default GitHub repo for precompiled artefacts.
   # Change this to your fork if you publish releases elsewhere.
   @github_repo "Ughuuu/libgodot"
@@ -74,11 +74,7 @@ defmodule LibGodotConnector.MixProject do
 
     # Only required when shipping precompiled NIFs.
     files =
-      if File.exists?("checksum-lib_godot_connector.exs") do
-        files ++ ["checksum-lib_godot_connector.exs"]
-      else
-        files
-      end
+      files ++ Enum.filter(["checksum.exs"], &File.exists?/1)
 
     [
       name: "lib_godot_connector",

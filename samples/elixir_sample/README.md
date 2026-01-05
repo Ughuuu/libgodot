@@ -51,7 +51,6 @@ Key idea: end-users installing from Hex should not need C++ tooling. During `mix
 1. Determine the current target triple (see `LibGodotConnector.Precompiler.current_target/0`).
 2. Compute the expected artefact filename (`@{artefact_filename}` in the URL template).
 3. Download and unpack the tarball into the dependency's `priv/` directory.
-4. Optionally verify checksums using `checksum-lib_godot_connector.exs` if it is present in the Hex package.
 
 If the precompiled artefact is missing/unavailable, `elixir_make` falls back to building locally (unless `LIBGODOT_FORCE_BUILD=1` is set).
 

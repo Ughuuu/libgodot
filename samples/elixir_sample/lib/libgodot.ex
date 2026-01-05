@@ -14,7 +14,8 @@ defmodule LibGodot do
     nif_path =
       Enum.find(candidates, fn path_no_ext ->
         File.exists?(path_no_ext <> ".so")
-      end)
+      end) ||
+        find_nested_nif_path_no_ext(base)
 
     case nif_path do
       nil ->
@@ -22,6 +23,23 @@ defmodule LibGodot do
 
       path_no_ext ->
         :erlang.load_nif(to_charlist(path_no_ext), 0)
+    end
+  end
+
+  defp find_nested_nif_path_no_ext(base) do
+    # elixir_make extracts archives into priv/, and depending on how the tar.gz was
+    # created, it may include a top-level folder. Support that by searching under
+    # the app priv directory.
+    priv_dir = Application.app_dir(:lib_godot_connector, "priv")
+
+    pattern = Path.join(priv_dir, "**/#{base}.so")
+
+    case Path.wildcard(pattern) do
+      [first | _] ->
+        String.replace_suffix(first, ".so", "")
+
+      [] ->
+        nil
     end
   end
 
