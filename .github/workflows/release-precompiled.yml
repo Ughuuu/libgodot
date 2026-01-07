@@ -128,13 +128,44 @@ jobs:
         run: |
           ./build_libgodot.sh --release
 
-      - name: Build libgodot (Windows/MSYS2)
+      - name: Build libgodot (Windows)
         if: runner.os == 'Windows'
         env:
           SCONSFLAGS: cache_path=${{ github.workspace }}/.scons_cache/ deprecated=yes
-        shell: msys2 {0}
+        shell: pwsh
         run: |
-          ./build_libgodot.sh --release
+          # Build host editor (for dumping GDExtension API)
+          cd godot
+          scons p=windows target=editor dev_build=yes
+          
+          # Build target libgodot (shared library for embedding)
+          scons p=windows target=editor arch=x86_64 opengl3=yes library_type=shared_library production=yes optimize=speed_trace lto=full deprecated=yes
+          
+          # Copy outputs to build/ directory
+          New-Item -ItemType Directory -Force -Path ../build
+          New-Item -ItemType Directory -Force -Path ../build/gdextension
+          
+          Copy-Item -Force bin/godot.windows.editor.dev.x86_64.exe ../build/godot.exe
+          
+          # Dump GDExtension API
+          cd ../build/gdextension
+          ../godot.exe --headless --dump-extension-api
+          
+          # Copy GDExtension headers
+          Copy-Item -Force ../../godot/core/extension/gdextension_interface.h .
+          Copy-Item -Force ../../godot/core/extension/libgodot.h .
+          
+          cd ../../godot
+          
+          # Find and copy the built libgodot.dll
+          $libgodot = Get-ChildItem -Recurse -Path bin -Filter "libgodot.windows.editor.x86_64.dll" | Select-Object -First 1
+          if ($libgodot) {
+            Copy-Item -Force $libgodot.FullName ../build/libgodot.dll
+            Write-Host "Copied libgodot.dll from: $($libgodot.FullName)"
+          } else {
+            Write-Error "Failed to locate libgodot.windows.editor.x86_64.dll"
+            exit 1
+          }
 
       - name: Save SCons cache
         uses: actions/cache/save@v4
