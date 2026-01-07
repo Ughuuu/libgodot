@@ -1,7 +1,7 @@
 defmodule LibGodotConnector.MixProject do
   use Mix.Project
 
-  @version "4.5.1-2"
+  @version "4.5.1-4"
   # Default GitHub repo for precompiled artefacts.
   # Change this to your fork if you publish releases elsewhere.
   @github_repo "Ughuuu/libgodot"
