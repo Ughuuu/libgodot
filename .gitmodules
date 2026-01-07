@@ -2,12 +2,6 @@
 	path = godot
 	branch=libgodot_fixes_4.5
 	url = https://github.com/migeran/godot
-[submodule "SwiftGodot"]
-	path = SwiftGodot
-	url = https://github.com/migeran/SwiftGodot
-[submodule "SwiftGodotKit"]
-	path = SwiftGodotKit
-	url = https://github.com/migeran/SwiftGodotKit
 [submodule "godot-cpp"]
 	path = godot-cpp
 	branch=libgodot_migeran_4.5
