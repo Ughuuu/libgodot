@@ -8,7 +8,9 @@ defmodule LibGodotConnector.Precompiler do
     "x86_64-linux-gnu",
     "aarch64-apple-darwin",
     # Common Rosetta/Intel macOS case.
-    "x86_64-apple-darwin"
+    "x86_64-apple-darwin",
+    # Windows (MSVC toolchain).
+    "x86_64-windows-msvc"
   ]
 
   @impl true
@@ -20,6 +22,10 @@ defmodule LibGodotConnector.Precompiler do
       # e.g. x86_64-pc-linux-gnu -> x86_64-linux-gnu
       [arch, _vendor, os, abi] ->
         {:ok, "#{arch}-#{os}-#{abi}"}
+
+      # e.g. x86_64-pc-win32 -> x86_64-windows-msvc
+      [arch, _vendor, "win32"] ->
+        {:ok, "#{arch}-windows-msvc"}
 
       # e.g. aarch64-apple-darwin23.2.0 -> aarch64-apple-darwin
       [arch, os, abi] ->

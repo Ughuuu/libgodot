@@ -43,6 +43,12 @@ defmodule LibGodotConnector.MixProject do
 
     url = System.get_env("LIBGODOT_PRECOMPILED_URL") || @default_precompiled_url
 
+    priv_paths =
+      case :os.type() do
+        {:win32, _} -> ["libgodot_nif.dll", "libgodot.*"]
+        _ -> ["libgodot_nif.so", "libgodot.*"]
+      end
+
     [
       # Fetch precompiled NIFs from GitHub releases.
       # If unavailable, elixir_make falls back to building locally.
@@ -53,7 +59,7 @@ defmodule LibGodotConnector.MixProject do
       # Our actual NIF filename is libgodot_nif.so (not derived from app name).
       make_precompiler_filename: "libgodot_nif",
       # Include the NIF and the packaged libgodot next to it.
-      make_precompiler_priv_paths: ["libgodot_nif.so", "libgodot.*"]
+      make_precompiler_priv_paths: priv_paths
     ]
   end
 

@@ -48,16 +48,30 @@ endif()
 
 file(MAKE_DIRECTORY "${PRIV_DIR}")
 
-# NIF is expected to be a .so on both macOS and Linux.
-set_target_properties(libgodot_nif PROPERTIES
-  OUTPUT_NAME "libgodot_nif"
-  PREFIX ""
-  SUFFIX ".so"
-  LIBRARY_OUTPUT_DIRECTORY "${PRIV_DIR}"
-)
+if(WIN32)
+  # On Windows, NIFs are DLLs.
+  set_target_properties(libgodot_nif PROPERTIES
+    OUTPUT_NAME "libgodot_nif"
+    PREFIX ""
+    SUFFIX ".dll"
+    RUNTIME_OUTPUT_DIRECTORY "${PRIV_DIR}"
+    LIBRARY_OUTPUT_DIRECTORY "${PRIV_DIR}"
+  )
+else()
+  # NIF is expected to be a .so on both macOS and Linux.
+  set_target_properties(libgodot_nif PROPERTIES
+    OUTPUT_NAME "libgodot_nif"
+    PREFIX ""
+    SUFFIX ".so"
+    LIBRARY_OUTPUT_DIRECTORY "${PRIV_DIR}"
+  )
+endif()
 
 # When distributing precompiled artefacts, we want libgodot to live next to the NIF in priv/.
-if(APPLE)
+if(WIN32)
+  set(LIBGODOT_SOURCE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../build/libgodot.dll")
+  set(LIBGODOT_DEST_PATH "${PRIV_DIR}/libgodot.dll")
+elseif(APPLE)
   set(LIBGODOT_SOURCE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../build/libgodot.dylib")
   set(LIBGODOT_DEST_PATH "${PRIV_DIR}/libgodot.dylib")
 else()
@@ -88,6 +102,6 @@ endif()
 if(APPLE)
   # Equivalent to: -undefined dynamic_lookup
   target_link_options(libgodot_nif PRIVATE "-undefined" "dynamic_lookup")
-else()
+elseif(NOT WIN32)
   target_link_libraries(libgodot_nif PRIVATE dl)
 endif()

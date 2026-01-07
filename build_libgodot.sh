@@ -19,6 +19,7 @@ target_arch=""
 host_build_options=""
 target_build_options=""
 lib_suffix="so"
+host_exe_suffix=""
 host_debug=1
 debug=1
 dev_build=0
@@ -42,6 +43,13 @@ case "$host_system" in
         cpus="$(sysctl -n hw.logicalcpu)"
         target_platform="macos"
         lib_suffix="dylib"
+    ;;
+    MINGW*|MSYS*|CYGWIN*)
+        host_platform="windows"
+        cpus="$(nproc 2>/dev/null || echo 1)"
+        target_platform="windows"
+        lib_suffix="dll"
+        host_exe_suffix=".exe"
     ;;
     *)
         echo "System $host_system is unsupported"
@@ -234,7 +242,7 @@ fi
 
 target_godot_suffix="$target_godot_suffix.$target_arch"
 
-host_godot="$GODOT_DIR/bin/godot.$host_godot_suffix"
+host_godot="$GODOT_DIR/bin/godot.$host_godot_suffix$host_exe_suffix"
 target_godot="$GODOT_DIR/bin/libgodot.$target_godot_suffix.$lib_suffix"
 
 mkdir -p $BUILD_DIR
