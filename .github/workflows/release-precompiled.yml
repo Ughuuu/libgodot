@@ -146,39 +146,41 @@ jobs:
         if: runner.os == 'Windows'
         env:
           SCONSFLAGS: cache_path=${{ github.workspace }}/.scons_cache/ deprecated=yes
-        shell: cmd
+        shell: pwsh
         run: |
-          rem Build host editor (for dumping GDExtension API).
-          cd godot
-          scons platform=windows target=editor dev_mode=yes windows_subsystem=console
+          $ErrorActionPreference = 'Stop'
 
-          rem Build target libgodot (shared library for embedding).
-          scons platform=windows target=editor arch=x86_64 opengl3=yes library_type=shared_library production=yes optimize=speed_trace lto=full deprecated=yes windows_subsystem=console
+          Write-Host "python:" (python --version)
+          Write-Host "cl:" (where.exe cl) 
+          Write-Host "ar (should be absent/unused):" 
+          try { where.exe ar } catch { Write-Host "(not found)" }
 
-          rem Copy outputs to build/ directory.
-          if not exist ..\build mkdir ..\build
-          if not exist ..\build\gdextension mkdir ..\build\gdextension
+          Push-Location godot
+          # Build host editor (for dumping GDExtension API).
+          scons platform=windows target=editor dev_mode=yes windows_subsystem=console use_mingw=no
 
-          copy /Y bin\godot.windows.editor.x86_64.exe ..\build\godot.exe
+          # Build target libgodot (shared library for embedding).
+          scons platform=windows target=editor arch=x86_64 opengl3=yes library_type=shared_library production=yes optimize=speed_trace lto=full deprecated=yes windows_subsystem=console use_mingw=no
 
-          rem Dump GDExtension API.
-          cd ..\build\gdextension
+          New-Item -ItemType Directory -Force -Path ..\build\gdextension | Out-Null
+          Copy-Item -Force bin\godot.windows.editor.x86_64.exe ..\build\godot.exe
+
+          # Dump GDExtension API.
+          Push-Location ..\build\gdextension
           ..\godot.exe --headless --dump-extension-api
+          Pop-Location
 
-          rem Copy GDExtension headers.
-          copy /Y ..\..\godot\core\extension\gdextension_interface.h .
-          copy /Y ..\..\godot\core\extension\libgodot.h .
+          Copy-Item -Force core\extension\gdextension_interface.h ..\build\gdextension\
+          Copy-Item -Force core\extension\libgodot.h ..\build\gdextension\
 
-          rem Find and copy the built libgodot.dll.
-          cd ..\..\godot
-          for /r bin %%F in (libgodot.windows.editor.x86_64.dll) do (
-            copy /Y "%%F" ..\build\libgodot.dll
-            echo Copied libgodot.dll from: %%F
-            goto :found
-          )
-          echo Failed to locate libgodot.windows.editor.x86_64.dll
-          exit /b 1
-          :found
+          if (Test-Path bin\libgodot.windows.editor.x86_64.dll) {
+            Copy-Item -Force bin\libgodot.windows.editor.x86_64.dll ..\build\libgodot.dll
+            Write-Host "Copied libgodot.dll from:" (Resolve-Path bin\libgodot.windows.editor.x86_64.dll)
+          } else {
+            Write-Error "Failed to locate bin\\libgodot.windows.editor.x86_64.dll"
+          }
+
+          Pop-Location
 
       - name: Save SCons cache
         uses: actions/cache/save@v4
