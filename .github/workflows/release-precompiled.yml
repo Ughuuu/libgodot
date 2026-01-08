@@ -73,6 +73,22 @@ jobs:
             zip \
             unzip
 
+      - name: Free disk space on runner
+        run: |
+          echo "Disk usage before:" && df -h
+          echo "Disk usage after:" && df -h
+      - name: Free disk space (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          set -eux
+          echo "Disk usage before:" && df -h
+          # The ubuntu runner image ships with large preinstalled SDKs we don't need.
+          # Removing them often frees 10+ GB and avoids "No space left on device" during link/archive steps.
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /usr/local/.ghcup || true
+          sudo rm -rf /usr/local/lib/android
+          sudo apt-get clean
+          echo "Disk usage after:" && df -h
+
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
