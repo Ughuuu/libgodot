@@ -68,7 +68,14 @@ jobs:
             vulkan-tools \
             git \
             zip \
-            unzip
+            unzip \
+            libx11-dev \
+            libxcursor-dev \
+            libxinerama-dev \
+            libxi-dev \
+            libxrandr-dev \
+            libxss-dev \
+            libxxf86vm-dev
 
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
