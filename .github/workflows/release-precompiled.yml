@@ -74,7 +74,14 @@ jobs:
             vulkan-tools \
             git \
             zip \
-            unzip
+            unzip \
+            libx11-dev \
+            libxcursor-dev \
+            libxinerama-dev \
+            libxi-dev \
+            libxrandr-dev \
+            libxss-dev \
+
 
       - name: Free disk space on runner
         run: |
