@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -21,12 +24,6 @@ jobs:
           - name: linux-x86_64
             runs_on: ubuntu-22.04
             target: x86_64-linux-gnu
-          - name: macos-arm64
-            runs_on: macos-15
-            target: aarch64-apple-darwin
-          - name: windows-x86_64
-            runs_on: windows-2022
-            target: x86_64-windows-msvc
 
     steps:
       - name: Checkout
@@ -71,7 +68,14 @@ jobs:
             vulkan-tools \
             git \
             zip \
-            unzip
+            unzip \
+            libx11-dev \
+            libxcursor-dev \
+            libxinerama-dev \
+            libxi-dev \
+            libxrandr-dev \
+            libxss-dev \
+            libxxf86vm-dev
 
       - name: Free disk space on runner
         run: |
@@ -125,21 +129,11 @@ jobs:
           python -m pip install scons==4.0
           scons --version
 
-      - name: Restore SCons cache
-        uses: actions/cache/restore@v4
-        with:
-          path: .scons_cache/
-          key: scons|${{ runner.os }}|${{ github.ref_name }}|${{ github.sha }}
-          restore-keys: |
-            scons|${{ runner.os }}|${{ github.ref_name }}|
-            scons|${{ runner.os }}|
-
       - name: Build libgodot
         if: runner.os != 'Windows'
         env:
           # Match upstream CI defaults and avoid DISABLE_DEPRECATED-related API mismatches.
-          # Also enable SCons cache for faster rebuilds.
-          SCONSFLAGS: cache_path=${{ github.workspace }}/.scons_cache/ deprecated=yes
+          SCONSFLAGS: cache_disable=yes deprecated=yes
         shell: bash
         run: |
           ./build_libgodot.sh --release
@@ -182,12 +176,6 @@ jobs:
             Write-Error "Failed to locate libgodot.windows.editor.x86_64.dll"
             exit 1
           }
-
-      - name: Save SCons cache
-        uses: actions/cache/save@v4
-        with:
-          path: .scons_cache/
-          key: scons|${{ runner.os }}|${{ github.ref_name }}|${{ github.sha }}
 
       - name: Build and precompile NIF (elixir_make)
         if: runner.os != 'Windows'

@@ -35,6 +35,8 @@ RUN apt-get update && apt-get install -y --fix-broken \
 	libxrandr-dev \
 	libxrender-dev \
 	libxi-dev \
+	libxss-dev \
+	libxxf86vm-dev \
 	# Wayland development libraries
 	libwayland-dev \
 	libwayland-egl1 \
