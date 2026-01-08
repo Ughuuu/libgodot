@@ -146,40 +146,39 @@ jobs:
         if: runner.os == 'Windows'
         env:
           SCONSFLAGS: cache_path=${{ github.workspace }}/.scons_cache/ deprecated=yes
-        shell: pwsh
+        shell: cmd
         run: |
-          # Build host editor (for dumping GDExtension API)
+          rem Build host editor (for dumping GDExtension API).
           cd godot
-          scons p=windows target=editor dev_build=yes
-          
-          # Build target libgodot (shared library for embedding)
-          scons p=windows target=editor arch=x86_64 opengl3=yes library_type=shared_library production=yes optimize=speed_trace lto=full deprecated=yes
-          
-          # Copy outputs to build/ directory
-          New-Item -ItemType Directory -Force -Path ../build
-          New-Item -ItemType Directory -Force -Path ../build/gdextension
-          
-          Copy-Item -Force bin/godot.windows.editor.dev.x86_64.exe ../build/godot.exe
-          
-          # Dump GDExtension API
-          cd ../build/gdextension
-          ../godot.exe --headless --dump-extension-api
-          
-          # Copy GDExtension headers
-          Copy-Item -Force ../../godot/core/extension/gdextension_interface.h .
-          Copy-Item -Force ../../godot/core/extension/libgodot.h .
-          
-          cd ../../godot
-          
-          # Find and copy the built libgodot.dll
-          $libgodot = Get-ChildItem -Recurse -Path bin -Filter "libgodot.windows.editor.x86_64.dll" | Select-Object -First 1
-          if ($libgodot) {
-            Copy-Item -Force $libgodot.FullName ../build/libgodot.dll
-            Write-Host "Copied libgodot.dll from: $($libgodot.FullName)"
-          } else {
-            Write-Error "Failed to locate libgodot.windows.editor.x86_64.dll"
-            exit 1
-          }
+          scons platform=windows target=editor dev_mode=yes windows_subsystem=console
+
+          rem Build target libgodot (shared library for embedding).
+          scons platform=windows target=editor arch=x86_64 opengl3=yes library_type=shared_library production=yes optimize=speed_trace lto=full deprecated=yes windows_subsystem=console
+
+          rem Copy outputs to build/ directory.
+          if not exist ..\build mkdir ..\build
+          if not exist ..\build\gdextension mkdir ..\build\gdextension
+
+          copy /Y bin\godot.windows.editor.x86_64.exe ..\build\godot.exe
+
+          rem Dump GDExtension API.
+          cd ..\build\gdextension
+          ..\godot.exe --headless --dump-extension-api
+
+          rem Copy GDExtension headers.
+          copy /Y ..\..\godot\core\extension\gdextension_interface.h .
+          copy /Y ..\..\godot\core\extension\libgodot.h .
+
+          rem Find and copy the built libgodot.dll.
+          cd ..\..\godot
+          for /r bin %%F in (libgodot.windows.editor.x86_64.dll) do (
+            copy /Y "%%F" ..\build\libgodot.dll
+            echo Copied libgodot.dll from: %%F
+            goto :found
+          )
+          echo Failed to locate libgodot.windows.editor.x86_64.dll
+          exit /b 1
+          :found
 
       - name: Save SCons cache
         uses: actions/cache/save@v4
@@ -199,10 +198,8 @@ jobs:
           # Run in a single Mix invocation so the Precompiler module is compiled+loaded.
           MIX_ENV=prod mix do compile --force + elixir_make.precompile
 
-      - name: Build and precompile NIF (elixir_make) (Windows/MSYS2)
+      - name: Set up MSYS2 (Windows)
         if: runner.os == 'Windows'
-        # MSYS2 is only needed for make/tar; keep it after the MSVC build to avoid
-        # SCons accidentally picking GNU binutils (ar/ranlib) on Windows.
         uses: msys2/setup-msys2@v2
         with:
           update: true
@@ -211,6 +208,7 @@ jobs:
             make
             tar
             unzip
+
       - name: Build and precompile NIF (elixir_make) (Windows/MSYS2)
         if: runner.os == 'Windows'
         shell: msys2 {0}
