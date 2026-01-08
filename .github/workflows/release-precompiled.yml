@@ -108,7 +108,6 @@ jobs:
 
       - name: Build libgodot
         if: runner.os != 'Windows'
-        continue-on-error: true
         env:
           # Match upstream CI defaults and avoid DISABLE_DEPRECATED-related API mismatches.
           SCONSFLAGS: deprecated=yes
@@ -118,7 +117,6 @@ jobs:
 
       - name: Build libgodot (Windows)
         if: runner.os == 'Windows'
-        continue-on-error: true
         env:
           SCONSFLAGS: cache_path=${{ github.workspace }}/.scons_cache/ deprecated=yes
         shell: pwsh
@@ -158,7 +156,6 @@ jobs:
 
       - name: Build and precompile NIF (elixir_make)
         if: runner.os != 'Windows'
-        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -171,7 +168,6 @@ jobs:
 
       - name: Build and precompile NIF (elixir_make) (Windows/MSYS2)
         if: runner.os == 'Windows'
-        continue-on-error: true
         shell: msys2 {0}
         run: |
           set -euo pipefail
