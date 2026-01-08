@@ -117,7 +117,7 @@ jobs:
         if: runner.os != 'Windows'
         env:
           # Match upstream CI defaults and avoid DISABLE_DEPRECATED-related API mismatches.
-          SCONSFLAGS: deprecated=yes
+          SCONSFLAGS: cache_disable=yes deprecated=yes
         shell: bash
         run: |
           ./build_libgodot.sh --release
